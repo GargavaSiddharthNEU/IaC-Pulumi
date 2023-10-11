@@ -1,0 +1,8 @@
+config:
+  aws:profile: develop
+  aws:region: us-east-1
+  iac-pulumi:vpcCidr: 10.0.0.0/16
+  iac-pulumi:privateSubnetBaseCIDR: 10.0.4.0
+  iac-pulumi:publicSubnetBaseCIDR: 10.0.1.0
+  iac-pulumi:region: us-east-1
+  iac-pulumi:subnetCount: "3"
