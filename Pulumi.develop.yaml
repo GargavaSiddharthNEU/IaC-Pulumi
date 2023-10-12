@@ -6,3 +6,7 @@ config:
   iac-pulumi:publicSubnetBaseCIDR: 10.0.1.0
   iac-pulumi:region: us-east-1
   iac-pulumi:subnetCount: "3"
+  iac-pulumi:vpcName: "vpc_aws"
+  iac-pulumi:igwName: "igw_aws"
+  iac-pulumi:publicrouteName: "public_route_table"
+  iac-pulumi:privaterouteName: "private_route_table"
