@@ -24,6 +24,9 @@ const privateSubnetCidrs = generateSubnetCidrs(privateSubnetBaseCIDR, subnetCoun
 // 1. Create Virtual Private Cloud (VPC).
 const vpc = new aws.ec2.Vpc("myVpc", {
     cidrBlock: vpcCidr,
+    tags:{
+        Name:`vpc-${pulumi.getStack()}`
+    }
 });
 
 // 2. Create subnets in your VPC.
@@ -57,11 +60,17 @@ const privateSubnets = privateSubnetCidrs.map((cidr: string, idx: number) => {
 // 3. Create an Internet Gateway resource and attach it to the VPC.
 const internetGateway = new aws.ec2.InternetGateway("AssignmentInternetGateway", {
     vpcId: vpc.id,
+    tags:{
+        Name:`igw-${pulumi.getStack()}`
+    }
 });
 
 // 4. Create a public route table and associate public subnets.
 const publicRouteTable = new aws.ec2.RouteTable("publicRouteTable", {
     vpcId: vpc.id,
+    tags:{
+        Name:`public_route_table-${pulumi.getStack()}`
+    }
 });
 
 
@@ -77,6 +86,9 @@ Promise.all(publicSubnets).then(resolvedSubnets => {
 // 5. Create a private route table and associate private subnets.
 const privateRouteTable = new aws.ec2.RouteTable("privateRouteTable", {
     vpcId: vpc.id,
+    tags:{
+        Name:`private_route_table-${pulumi.getStack()}`
+    }
 });
 
 
