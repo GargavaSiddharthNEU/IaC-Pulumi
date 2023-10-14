@@ -161,6 +161,41 @@ const publicRoute = new aws.ec2.Route("publicRoute", {
     gatewayId: internetGateway.id,
 });
 
+const appSecurityGroup = new aws.ec2.SecurityGroup("AppSecurityGroup", {
+    vpcId: vpc.id,
+    description: "Security group for web applications",
+    ingress: [
+        { protocol: "tcp", fromPort: 22, toPort: 22, cidrBlocks: ["0.0.0.0/0"] },
+        { protocol: "tcp", fromPort: 80, toPort: 80, cidrBlocks: ["0.0.0.0/0"] },
+        { protocol: "tcp", fromPort: 443, toPort: 443, cidrBlocks: ["0.0.0.0/0"] },
+        { protocol: "tcp", fromPort: 8080, toPort: 8080, cidrBlocks: ["0.0.0.0/0"] }
+    ],
+    tags: {
+        Name: "ApplicationSecurityGroup",
+        // Other relevant tags can be added here
+    }
+});
+
+// 8. EC2 Instance
+const ec2Instance = new aws.ec2.Instance("AppEC2Instance", {
+    ami: "ami-0aa3d9f0fcc4f8b6d",  // Replace with your custom AMI ID
+    instanceType: "t2.micro",   // Choose any appropriate instance type
+    keyName: "ec2-aws-test",   // Replace with your SSH key name if you have one
+    vpcSecurityGroupIds: [appSecurityGroup.id],
+    subnetId: publicSubnets[0].id,  // Launching in the first public subnet as an example
+    rootBlockDevice: {
+        volumeType: "gp2",
+        volumeSize: 25,
+        deleteOnTermination: true
+    },
+    disableApiTermination: false,
+    tags: {
+        Name: "AppEC2Instance",
+        // Other relevant tags can be added here
+    }
+});
+
+
 // Exporting the VPC id for reference.
 export const exportedVpcId = vpc.id;
 
