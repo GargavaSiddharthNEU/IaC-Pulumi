@@ -178,7 +178,7 @@ const appSecurityGroup = new aws.ec2.SecurityGroup("AppSecurityGroup", {
 
 // 8. EC2 Instance
 const ec2Instance = new aws.ec2.Instance("AppEC2Instance", {
-    ami: "ami-0aa3d9f0fcc4f8b6d",  // Replace with your custom AMI ID
+    ami: "ami-0c7d5ccf4e83432e9",  // Replace with your custom AMI ID
     instanceType: "t2.micro",   // Choose any appropriate instance type
     keyName: "ec2-aws-test",   // Replace with your SSH key name if you have one
     vpcSecurityGroupIds: [appSecurityGroup.id],
