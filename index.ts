@@ -177,12 +177,45 @@ const appSecurityGroup = new aws.ec2.SecurityGroup("AppSecurityGroup", {
 });
 
 // 8. EC2 Instance
+// const ec2Instance = new aws.ec2.Instance("AppEC2Instance", {
+//     ami: "ami-07e7ef52cc5f8246d",  // Replace with your custom AMI ID
+//     instanceType: "t2.micro",   // Choose any appropriate instance type
+//     keyName: "ec2-aws-test",   // Replace with your SSH key name if you have one
+//     vpcSecurityGroupIds: [appSecurityGroup.id],
+//     subnetId: publicSubnets[0].id,  // Launching in the first public subnet as an example
+//     rootBlockDevice: {
+//         volumeType: "gp2",
+//         volumeSize: 25,
+//         deleteOnTermination: true
+//     },
+//     disableApiTermination: false,
+//     tags: {
+//         Name: "AppEC2Instance",
+//         // Other relevant tags can be added here
+//     }
+// });
+
+const latestAmiPromise = aws.ec2.getAmi({
+    mostRecent: true,
+    filters: [
+        {
+            name: 'state',
+            values: ['available'],
+        },
+    ],
+    owners: ["388344348771"],
+});
+
+const latestAmi = pulumi.output(latestAmiPromise);
+
+
+// 8. EC2 Instance
 const ec2Instance = new aws.ec2.Instance("AppEC2Instance", {
-    ami: "ami-0c7d5ccf4e83432e9",  // Replace with your custom AMI ID
+    ami: latestAmi.apply(ami => ami.id),  // Replace with your custom AMI ID
     instanceType: "t2.micro",   // Choose any appropriate instance type
     keyName: "ec2-aws-test",   // Replace with your SSH key name if you have one
     vpcSecurityGroupIds: [appSecurityGroup.id],
-    subnetId: publicSubnets[0].id,  // Launching in the first public subnet as an example
+    subnetId: publicSubnets[0].id,  // Launching in the first public subnet
     rootBlockDevice: {
         volumeType: "gp2",
         volumeSize: 25,
@@ -191,10 +224,8 @@ const ec2Instance = new aws.ec2.Instance("AppEC2Instance", {
     disableApiTermination: false,
     tags: {
         Name: "AppEC2Instance",
-        // Other relevant tags can be added here
     }
 });
-
 
 // Exporting the VPC id for reference.
 export const exportedVpcId = vpc.id;
