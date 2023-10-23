@@ -1,12 +1,16 @@
 config:
   aws:profile: develop
   aws:region: us-east-1
-  iac-pulumi:vpcCidr: 10.0.0.0/16
+  iac-pulumi:dbPassword:
+    secure: AAABAMusKhTbPnyU0G1yZWHMwAZRVi7KKU7K5HVwXPaqGX8ZvJIhW1A=
+  iac-pulumi:dbPostgresql: "csye6225"
+  iac-pulumi:dbUser: "csye6225"
+  iac-pulumi:igwName: "igw_aws"
   iac-pulumi:privateSubnetBaseCIDR: 10.0.4.0
+  iac-pulumi:privaterouteName: "private_route_table"
   iac-pulumi:publicSubnetBaseCIDR: 10.0.1.0
+  iac-pulumi:publicrouteName: "public_route_table"
   iac-pulumi:region: us-east-1
   iac-pulumi:subnetCount: "3"
+  iac-pulumi:vpcCidr: 10.0.0.0/16
   iac-pulumi:vpcName: "vpc_aws"
-  iac-pulumi:igwName: "igw_aws"
-  iac-pulumi:publicrouteName: "public_route_table"
-  iac-pulumi:privaterouteName: "private_route_table"

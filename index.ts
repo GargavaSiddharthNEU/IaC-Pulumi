@@ -13,6 +13,9 @@ const vpcNameF = config.require("vpcName");
 const igwNameF = config.require("igwName");
 const publicrouteNameF = config.require("publicrouteName");
 const privaterouteNameF = config.require("privaterouteName");
+const dbPassword = config.requireSecret("dbPassword");
+const dbUser = config.require("dbUser");
+const dbPostgresql = config.require("dbPostgresql");
 
 
 // Generate subnet CIDRs dynamically
@@ -170,6 +173,14 @@ const appSecurityGroup = new aws.ec2.SecurityGroup("AppSecurityGroup", {
         { protocol: "tcp", fromPort: 443, toPort: 443, cidrBlocks: ["0.0.0.0/0"] },
         { protocol: "tcp", fromPort: 8080, toPort: 8080, cidrBlocks: ["0.0.0.0/0"] }
     ],
+    egress: [
+        {
+            protocol: "-1",
+            fromPort: 0,
+            toPort: 0,
+            cidrBlocks: ["0.0.0.0/0"]
+        }
+    ],
     tags: {
         Name: "ApplicationSecurityGroup",
         // Other relevant tags can be added here
@@ -209,11 +220,81 @@ const latestAmiPromise = aws.ec2.getAmi({
 const latestAmi = pulumi.output(latestAmiPromise);
 
 
+//Assignment-6
+
+    const rdsSecurityGroup = new aws.ec2.SecurityGroup("RdsSecurityGroup", {
+        vpcId: vpc.id,
+        description: "Security group for RDS instances",
+        ingress: [
+            {
+                protocol: "tcp",
+                fromPort: 5432,
+                toPort: 5432,
+                securityGroups: [appSecurityGroup.id]  // Allowing traffic from the application security group
+            }
+        ],
+        tags: {
+            Name: "DatabaseSecurityGroup"
+        }
+    });
+
+    const rdsParameterGroup = new aws.rds.ParameterGroup("rdsparametergroup", {
+        family: "postgres15",  // For PostgreSQL 12, update this according to your version
+        // parameters: [
+        //     {
+        //         name: "max_connections",
+        //         value: "100",
+        //         applyMethod: "pending-reboot"
+        //     },
+        // ],
+        tags: {
+            Name: "rdsparametergroup"
+        }
+    });
+
+    const dbSubnetGroupName = "csye-db-subnet-group"
+
+    const rdsSubnetGroup = new aws.rds.SubnetGroup(dbSubnetGroupName, {
+
+        subnetIds: [privateSubnets[0].id, privateSubnets[1].id],
+
+    });
+
+    const rdsInstance = new aws.rds.Instance("RDSInstance", {
+        engine: "postgres",
+        instanceClass: "db.t3.micro",
+        allocatedStorage: 20,
+        name: dbPostgresql,
+        username: dbUser,
+        password: dbPassword,
+        parameterGroupName: rdsParameterGroup.name,
+        skipFinalSnapshot: true,
+        dbSubnetGroupName: rdsSubnetGroup.name, // DB subnet group using the private subnets
+        vpcSecurityGroupIds: [rdsSecurityGroup.id],
+        multiAz: false,
+        publiclyAccessible: false,
+        identifier: "csye6225",
+        tags: {
+            Name: "RDSInstance"
+        }
+    });
+    
+    // const ec2Instance = new aws.ec2.Instance("AppEC2Instance", {
+    //     // ... (other configurations)
+    //     userData: pulumi.interpolate`#!/bin/bash
+    //     echo DATABASE_USERNAME=csye6225 >> /etc/environment
+    //     echo DATABASE_PASSWORD=root >> /etc/environment
+    //     echo DATABASE_HOST=${rdsInstance.endpoint} >> /etc/environment`,
+    //     tags: {
+    //         Name: "AppEC2Instance",
+    //     }
+    // });
+    
 // 8. EC2 Instance
 const ec2Instance = new aws.ec2.Instance("AppEC2Instance", {
-    ami: latestAmi.apply(ami => ami.id),  // Replace with your custom AMI ID
-    instanceType: "t2.micro",   // Choose any appropriate instance type
-    keyName: "ec2-aws-test",   // Replace with your SSH key name if you have one
+    ami: latestAmi.apply(ami => ami.id),  
+    instanceType: "t2.micro",   // Choosing instance type
+    keyName: "ec2-aws-test",   // Add SSH key
     vpcSecurityGroupIds: [appSecurityGroup.id],
     subnetId: publicSubnets[0].id,  // Launching in the first public subnet
     rootBlockDevice: {
@@ -222,10 +303,21 @@ const ec2Instance = new aws.ec2.Instance("AppEC2Instance", {
         deleteOnTermination: true
     },
     disableApiTermination: false,
+    userData: pulumi.interpolate`#!/bin/bash
+    cd /home/admin/webapp
+    rm .env
+    touch .env
+    echo DB_HOST=${rdsInstance.address} >> /home/admin/webApp/.env
+    echo DB_POSTGRESQL=${dbPostgresql} >> /home/admin/webApp/.env
+    echo DB_USER=${dbUser} >> /home/admin/webApp/.env
+    echo DB_PASSWORD=${dbPassword} >> /home/admin/webApp/.env`,
+    // dependsOn: [rdsDatabase],
     tags: {
         Name: "AppEC2Instance",
     }
 });
+
+//Assignment-6 End
 
 // Exporting the VPC id for reference.
 export const exportedVpcId = vpc.id;
