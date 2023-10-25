@@ -1,8 +1,10 @@
 config:
   aws:profile: develop
   aws:region: us-east-1
+  # iac-pulumi:dbPassword:
+  #   secure: AAABAMusKhTbPnyU0G1yZWHMwAZRVi7KKU7K5HVwXPaqGX8ZvJIhW1A=
   iac-pulumi:dbPassword:
-    secure: AAABAMusKhTbPnyU0G1yZWHMwAZRVi7KKU7K5HVwXPaqGX8ZvJIhW1A=
+    secure: AAABAAEGL9QjZCF4u6MTcEGc1F7BvzI2YxKyDhXihGX/o+e5Wad+D+w=
   iac-pulumi:dbPostgresql: "csye6225"
   iac-pulumi:dbUser: "csye6225"
   iac-pulumi:igwName: "igw_aws"

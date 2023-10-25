@@ -304,13 +304,13 @@ const ec2Instance = new aws.ec2.Instance("AppEC2Instance", {
     },
     disableApiTermination: false,
     userData: pulumi.interpolate`#!/bin/bash
-    cd /home/admin/webapp
+    cd /opt/webapp
     rm .env
     touch .env
-    echo DB_HOST=${rdsInstance.address} >> /home/admin/webApp/.env
-    echo DB_POSTGRESQL=${dbPostgresql} >> /home/admin/webApp/.env
-    echo DB_USER=${dbUser} >> /home/admin/webApp/.env
-    echo DB_PASSWORD=${dbPassword} >> /home/admin/webApp/.env`,
+    echo DB_HOST=${rdsInstance.address} >> /opt/webApp/.env
+    echo DB_POSTGRESQL=${dbPostgresql} >> /opt/webApp/.env
+    echo DB_USER=${dbUser} >> /opt/webApp/.env
+    echo DB_PASSWORD=${dbPassword} >> /opt/webApp/.env`,
     // dependsOn: [rdsDatabase],
     tags: {
         Name: "AppEC2Instance",
