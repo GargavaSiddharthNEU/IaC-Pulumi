@@ -17,6 +17,9 @@ const dbPassword = config.requireSecret("dbPassword");
 const dbUser = config.require("dbUser");
 const dbPostgresql = config.require("dbPostgresql");
 
+// Assuming you have the hosted zone ID as a Pulumi config value
+const hostedZoneId = config.require("hostedZoneId");
+
 
 // Generate subnet CIDRs dynamically
 // const generateSubnetCidrs = (base: string, count: number): string[] => {
@@ -279,16 +282,34 @@ const latestAmi = pulumi.output(latestAmiPromise);
         }
     });
     
-    // const ec2Instance = new aws.ec2.Instance("AppEC2Instance", {
-    //     // ... (other configurations)
-    //     userData: pulumi.interpolate`#!/bin/bash
-    //     echo DATABASE_USERNAME=csye6225 >> /etc/environment
-    //     echo DATABASE_PASSWORD=root >> /etc/environment
-    //     echo DATABASE_HOST=${rdsInstance.endpoint} >> /etc/environment`,
-    //     tags: {
-    //         Name: "AppEC2Instance",
-    //     }
-    // });
+    //Assignment-7
+    // CloudWatch Agent IAM Role and Policy Attachment
+    const cloudwatchAgentRole = new aws.iam.Role("cloudwatchAgentRole", {
+        assumeRolePolicy: JSON.stringify({
+            Version: '2012-10-17',
+            Statement: [{
+                Action: 'sts:AssumeRole',
+                Principal: {
+                    Service: 'ec2.amazonaws.com'
+                },
+                Effect: 'Allow',
+            }]
+        })
+    });
+
+    const policyAttachment = new aws.iam.RolePolicyAttachment('cloudWatchAgentPolicyAttachment', {
+        role: cloudwatchAgentRole.name,
+        policyArn: 'arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy'
+    });
+
+    // Create an IAM Instance Profile for our EC2 instance
+    const cloudwatchAgentInstanceProfile = new aws.iam.InstanceProfile("cloudwatchAgentInstanceProfile", {
+        role: cloudwatchAgentRole.name,
+    });
+
+
+    //Fetch your Route53 Hosted Zone using the hostedZoneId
+    const hostedZone = aws.route53.getZone({ zoneId: hostedZoneId });
     
 // 8. EC2 Instance
 const ec2Instance = new aws.ec2.Instance("AppEC2Instance", {
@@ -296,6 +317,7 @@ const ec2Instance = new aws.ec2.Instance("AppEC2Instance", {
     instanceType: "t2.micro",   // Choosing instance type
     keyName: "ec2-aws-test",   // Add SSH key
     vpcSecurityGroupIds: [appSecurityGroup.id],
+    iamInstanceProfile: cloudwatchAgentInstanceProfile.name,
     subnetId: publicSubnets[0].id,  // Launching in the first public subnet
     rootBlockDevice: {
         volumeType: "gp2",
@@ -310,12 +332,35 @@ const ec2Instance = new aws.ec2.Instance("AppEC2Instance", {
     echo DB_HOST=${rdsInstance.address} >> /opt/webApp/.env
     echo DB_POSTGRESQL=${dbPostgresql} >> /opt/webApp/.env
     echo DB_USER=${dbUser} >> /opt/webApp/.env
-    echo DB_PASSWORD=${dbPassword} >> /opt/webApp/.env`,
+    echo DB_PASSWORD=${dbPassword} >> /opt/webApp/.env
+    sudo systemctl restart webApp.service
+    sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+    -a fetch-config \
+    -m ec2 \
+    -c file:/opt/webApp/AmazonCloudWatch-cloudwatch-config.json \
+    -s
+    sudo systemctl enable amazon-cloudwatch-agent
+    sudo systemctl start amazon-cloudwatch-agent`,
     // dependsOn: [rdsDatabase],
     tags: {
         Name: "AppEC2Instance",
     }
 });
+
+
+
+    // 2. Create/Update the A record for your EC2 instance within the Hosted Zone
+    const domainName = "siddharthgargava.me"; // Replace with your domain name
+    const subdomainName = "demos"; // Subdomain for the EC2 instance. Change this if required.
+
+    const aRecord = new aws.route53.Record(`${subdomainName}.${domainName}`, {
+        zoneId: hostedZoneId,
+        name: "demos.siddharthgargava.me",
+        type: "A",
+        ttl: 60,
+        records: [ec2Instance.publicIp], // This ties the EC2 instance's public IP to the A record
+    });
+//Assignment-7 end
 
 //Assignment-6 End
 

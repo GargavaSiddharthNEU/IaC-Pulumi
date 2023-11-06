@@ -2,11 +2,13 @@ config:
   aws:profile: develop
   aws:region: us-east-1
   # iac-pulumi:dbPassword:
+
   #   secure: AAABAMusKhTbPnyU0G1yZWHMwAZRVi7KKU7K5HVwXPaqGX8ZvJIhW1A=
   iac-pulumi:dbPassword:
     secure: AAABAAEGL9QjZCF4u6MTcEGc1F7BvzI2YxKyDhXihGX/o+e5Wad+D+w=
   iac-pulumi:dbPostgresql: "csye6225"
   iac-pulumi:dbUser: "csye6225"
+  iac-pulumi:hostedZoneId: "Z06048782W3S82E5AUHQA"
   iac-pulumi:igwName: "igw_aws"
   iac-pulumi:privateSubnetBaseCIDR: 10.0.4.0
   iac-pulumi:privaterouteName: "private_route_table"
