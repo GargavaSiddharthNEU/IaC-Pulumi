@@ -20,14 +20,6 @@ const dbPostgresql = config.require("dbPostgresql");
 // Assuming you have the hosted zone ID as a Pulumi config value
 const hostedZoneId = config.require("hostedZoneId");
 
-
-// Generate subnet CIDRs dynamically
-// const generateSubnetCidrs = (base: string, count: number): string[] => {
-//     const baseParts = base.split(".");
-//     const thirdOctet = parseInt(baseParts[2], 10);
-//     return Array.from({ length: count }, (_, i) => `${baseParts[0]}.${baseParts[1]}.${thirdOctet + i}.0/24`);
-// }
-
 const availabilityZones = aws.getAvailabilityZones();
 
 const determineSubnetCount = availabilityZones.then(azs => {
@@ -69,26 +61,11 @@ const createSubnet = (name: string, cidr: string, az: string, isPublic: boolean)
 };
 
 
-
-
-// const publicSubnets = publicSubnetCidrs.map((cidr: string, idx: number) => {
-//     // Use the fetched availability zones for the subnets
-//     return availabilityZones.then((azs: any) => {
-//         return createSubnet(`publicSubnet-${idx}`, cidr, azs.names[idx], true);
-//     });
-// });
-
 const publicSubnets = pulumi.all([publicSubnetCidrsPromise, availabilityZones])
     .apply(([cidrs, azs]) => cidrs.map((cidr: string, idx: number) => {
         return createSubnet(`publicSubnet-${idx}`, cidr, azs.names[idx], true);
     }));
 
-// const privateSubnets = privateSubnetCidrs.map((cidr: string, idx: number) => {
-//     // Use the fetched availability zones for the subnets
-//     return availabilityZones.then((azs: any) => {
-//         return createSubnet(`privateSubnet-${idx}`, cidr, azs.names[idx], true);
-//     });
-// });
 
 const privateSubnets = pulumi.all([privateSubnetCidrsPromise, availabilityZones])
     .apply(([cidrs, azs]) => cidrs.map((cidr: string, idx: number) => {
@@ -114,15 +91,6 @@ const publicRouteTable = new aws.ec2.RouteTable("publicRouteTable", {
 });
 
 
-// Promise.all(publicSubnets).then(resolvedSubnets => {
-//     resolvedSubnets.forEach((subnet: aws.ec2.Subnet, idx: number) => {
-//         new aws.ec2.RouteTableAssociation(`publicRta-${idx}`, {
-//             subnetId: subnet.id,
-//             routeTableId: publicRouteTable.id,
-//         });
-//     });
-// });
-
 pulumi.all([publicSubnets, publicRouteTable]).apply(([subnets, rt]) => {
     subnets.forEach((subnet, idx) => {
         new aws.ec2.RouteTableAssociation(`publicRta-${idx}`, {
@@ -142,15 +110,6 @@ const privateRouteTable = new aws.ec2.RouteTable("privateRouteTable", {
 });
 
 
-// Promise.all(privateSubnets).then(resolvedSubnets => {
-//     resolvedSubnets.forEach((subnet: aws.ec2.Subnet, idx: number) => {
-//         new aws.ec2.RouteTableAssociation(`privateRta-${idx}`, {
-//             subnetId: subnet.id,
-//             routeTableId: privateRouteTable.id,
-//         });
-//     });
-// });
-
 pulumi.all([privateSubnets, privateRouteTable]).apply(([subnets, rt]) => {
     subnets.forEach((subnet, idx) => {
         new aws.ec2.RouteTableAssociation(`privateRta-${idx}`, {
@@ -167,47 +126,45 @@ const publicRoute = new aws.ec2.Route("publicRoute", {
     gatewayId: internetGateway.id,
 });
 
-const appSecurityGroup = new aws.ec2.SecurityGroup("AppSecurityGroup", {
-    vpcId: vpc.id,
-    description: "Security group for web applications",
-    ingress: [
-        { protocol: "tcp", fromPort: 22, toPort: 22, cidrBlocks: ["0.0.0.0/0"] },
-        { protocol: "tcp", fromPort: 80, toPort: 80, cidrBlocks: ["0.0.0.0/0"] },
-        { protocol: "tcp", fromPort: 443, toPort: 443, cidrBlocks: ["0.0.0.0/0"] },
-        { protocol: "tcp", fromPort: 8080, toPort: 8080, cidrBlocks: ["0.0.0.0/0"] }
-    ],
-    egress: [
-        {
-            protocol: "-1",
-            fromPort: 0,
-            toPort: 0,
-            cidrBlocks: ["0.0.0.0/0"]
-        }
-    ],
-    tags: {
-        Name: "ApplicationSecurityGroup",
-        // Other relevant tags can be added here
-    }
-});
+//Assignment-9 starts
 
-// 8. EC2 Instance
-// const ec2Instance = new aws.ec2.Instance("AppEC2Instance", {
-//     ami: "ami-07e7ef52cc5f8246d",  // Replace with your custom AMI ID
-//     instanceType: "t2.micro",   // Choose any appropriate instance type
-//     keyName: "ec2-aws-test",   // Replace with your SSH key name if you have one
-//     vpcSecurityGroupIds: [appSecurityGroup.id],
-//     subnetId: publicSubnets[0].id,  // Launching in the first public subnet as an example
-//     rootBlockDevice: {
-//         volumeType: "gp2",
-//         volumeSize: 25,
-//         deleteOnTermination: true
-//     },
-//     disableApiTermination: false,
-//     tags: {
-//         Name: "AppEC2Instance",
-//         // Other relevant tags can be added here
-//     }
-// });
+    // Load Balancer Security Group
+    const lbSecurityGroup = new aws.ec2.SecurityGroup("LbSecurityGroup", {
+        vpcId: vpc.id,
+        description: "Security group for the load balancer",
+        ingress: [
+            { protocol: "tcp", fromPort: 80, toPort: 80, cidrBlocks: ["0.0.0.0/0"] },
+            { protocol: "tcp", fromPort: 443, toPort: 443, cidrBlocks: ["0.0.0.0/0"] }
+        ],
+        egress: [
+            { protocol: "-1", fromPort: 0, toPort: 0, cidrBlocks: ["0.0.0.0/0"] }
+        ]
+    });
+
+    //Updated App security group
+    const appSecurityGroup = new aws.ec2.SecurityGroup("AppSecurityGroup", {
+        vpcId: vpc.id,
+        description: "Security group for web applications",
+        ingress: [
+            { protocol: "tcp", fromPort: 22, toPort: 22, securityGroups: [lbSecurityGroup.id] },
+            // { protocol: "tcp", fromPort: 22, toPort: 22, cidrBlocks: ["0.0.0.0/0"] },
+            { protocol: "tcp", fromPort: 8080, toPort: 8080, securityGroups: [lbSecurityGroup.id] }
+        ],
+        egress: [       
+            {
+                protocol: "-1",
+                fromPort: 0,
+                toPort: 0,
+                cidrBlocks: ["0.0.0.0/0"]
+            }
+        ],
+        tags: {
+            Name: "ApplicationSecurityGroup",
+            // Other relevant tags can be added here
+        }
+    });
+
+    //Assignment-9 pause
 
 const latestAmiPromise = aws.ec2.getAmi({
     mostRecent: true,
@@ -236,20 +193,21 @@ const latestAmi = pulumi.output(latestAmiPromise);
                 securityGroups: [appSecurityGroup.id]  // Allowing traffic from the application security group
             }
         ],
+        egress: [       
+            {
+                protocol: "tcp",
+                fromPort: 5432,
+                toPort: 5432,
+                securityGroups: [appSecurityGroup.id]
+            }
+        ],
         tags: {
             Name: "DatabaseSecurityGroup"
         }
     });
 
     const rdsParameterGroup = new aws.rds.ParameterGroup("rdsparametergroup", {
-        family: "postgres15",  // For PostgreSQL 12, update this according to your version
-        // parameters: [
-        //     {
-        //         name: "max_connections",
-        //         value: "100",
-        //         applyMethod: "pending-reboot"
-        //     },
-        // ],
+        family: "postgres15",  
         tags: {
             Name: "rdsparametergroup"
         }
@@ -311,21 +269,82 @@ const latestAmi = pulumi.output(latestAmiPromise);
     //Fetch your Route53 Hosted Zone using the hostedZoneId
     const hostedZone = aws.route53.getZone({ zoneId: hostedZoneId });
     
-// 8. EC2 Instance
-const ec2Instance = new aws.ec2.Instance("AppEC2Instance", {
-    ami: latestAmi.apply(ami => ami.id),  
-    instanceType: "t2.micro",   // Choosing instance type
-    keyName: "ec2-aws-test",   // Add SSH key
-    vpcSecurityGroupIds: [appSecurityGroup.id],
-    iamInstanceProfile: cloudwatchAgentInstanceProfile.name,
-    subnetId: publicSubnets[0].id,  // Launching in the first public subnet
-    rootBlockDevice: {
-        volumeType: "gp2",
-        volumeSize: 25,
-        deleteOnTermination: true
-    },
-    disableApiTermination: false,
-    userData: pulumi.interpolate`#!/bin/bash
+    // 8. EC2 Instance
+    // const ec2Instance = new aws.ec2.Instance("AppEC2Instance", {
+    //     ami: latestAmi.apply(ami => ami.id),  
+    //     instanceType: "t2.micro",   // Choosing instance type
+    //     keyName: "ec2-aws-test",   // Add SSH key
+    //     vpcSecurityGroupIds: [appSecurityGroup.id],
+    //     //iamInstanceProfile: cloudwatchAgentInstanceProfile.name,
+    //     subnetId: publicSubnets[0].id,  // Launching in the first public subnet
+    //     rootBlockDevice: {
+    //         volumeType: "gp2",
+    //         volumeSize: 25,
+    //         deleteOnTermination: true
+    //     },
+    //     disableApiTermination: false,
+    //     userData: pulumi.interpolate`#!/bin/bash
+    //     cd /opt/webapp
+    //     rm .env
+    //     touch .env
+    //     echo DB_HOST=${rdsInstance.address} >> /opt/webApp/.env
+    //     echo DB_POSTGRESQL=${dbPostgresql} >> /opt/webApp/.env
+    //     echo DB_USER=${dbUser} >> /opt/webApp/.env
+    //     echo DB_PASSWORD=${dbPassword} >> /opt/webApp/.env
+    //     sudo systemctl restart webApp.service
+    //     sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+    //     -a fetch-config \
+    //     -m ec2 \
+    //     -c file:/opt/webApp/AmazonCloudWatch-cloudwatch-config.json \
+    //     -s
+    //     sudo systemctl enable amazon-cloudwatch-agent
+    //     sudo systemctl start amazon-cloudwatch-agent`,
+    //     // dependsOn: [rdsDatabase],
+    //     tags: {
+    //         Name: "AppEC2Instance",
+    //     }
+    // });
+
+    //Assignment-9 restarts
+
+     //Load Balancer
+     const appLoadBalancer = new aws.lb.LoadBalancer("AppLoadBalancer", {
+        name: "loadbalancer-siddharth",
+        internal: false,
+        loadBalancerType: "application",
+        securityGroups: [lbSecurityGroup.id],
+        subnets: publicSubnets.apply(subnets => subnets.map(subnet => subnet.id)),
+        enableDeletionProtection: false,
+    });
+    
+    // Target Group for Load Balancer
+    const targetGroup = new aws.lb.TargetGroup("AppTargetGroup", {
+        port: 8080,
+        protocol: "HTTP",
+        vpcId: vpc.id,
+        targetType: "instance",
+        healthCheck: {
+            healthyThreshold: 3,
+            unhealthyThreshold: 3,
+            timeout: 10,
+            interval: 30,
+            path: "/healthz",
+            port: "8080",
+            matcher: "200",
+        },
+    });
+    
+    new aws.lb.Listener("AppListener", {
+        loadBalancerArn: appLoadBalancer.arn,
+        port: 80,
+        protocol: "HTTP",
+        defaultActions: [{
+            type: "forward",
+            targetGroupArn: targetGroup.arn,
+        }],
+    });
+
+    const userDataScript = pulumi.interpolate`#!/bin/bash
     cd /opt/webapp
     rm .env
     touch .env
@@ -334,32 +353,153 @@ const ec2Instance = new aws.ec2.Instance("AppEC2Instance", {
     echo DB_USER=${dbUser} >> /opt/webApp/.env
     echo DB_PASSWORD=${dbPassword} >> /opt/webApp/.env
     sudo systemctl restart webApp.service
+    
     sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
     -a fetch-config \
     -m ec2 \
     -c file:/opt/webApp/AmazonCloudWatch-cloudwatch-config.json \
     -s
     sudo systemctl enable amazon-cloudwatch-agent
-    sudo systemctl start amazon-cloudwatch-agent`,
-    // dependsOn: [rdsDatabase],
-    tags: {
-        Name: "AppEC2Instance",
-    }
-});
+    sudo systemctl start amazon-cloudwatch-agent`;
 
+    // Auto Scaling Setup (D)
+    const launchTemplate = new aws.ec2.LaunchTemplate("AppLaunchTemplate", {
+        imageId: latestAmi.apply(ami => ami.id),
+        instanceType: "t2.micro",
+        keyName: "ec2-aws-test",
+        networkInterfaces: [{
+            associatePublicIpAddress: "true",
+            securityGroups: [appSecurityGroup.id],
+        }],
+        disableApiTermination: false, //change
+        //Mapping change
+        blockDeviceMappings: [
+            {
+                deviceName: "/dev/xvda",
+                ebs: {
+                    volumeSize: 25,
+                    volumeType: "gp2",
+                    deleteOnTermination: "true",
+                },
+            },
+        ],
+        iamInstanceProfile: {
+            name: cloudwatchAgentInstanceProfile.name,
+            //name: cloudwatchAgentInstanceProfile.name.apply(name => name),
+        },
+        // userData: pulumi.interpolate`#!/bin/bash
+        // cd /opt/webapp
+        // rm .env
+        // touch .env
+        // echo DB_HOST=${rdsInstance.address} >> /opt/webApp/.env
+        // echo DB_POSTGRESQL=${dbPostgresql} >> /opt/webApp/.env
+        // echo DB_USER=${dbUser} >> /opt/webApp/.env
+        // echo DB_PASSWORD=${dbPassword} >> /opt/webApp/.env
+        // sudo systemctl restart webApp.service
+        // sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+        // -a fetch-config \
+        // -m ec2 \
+        // -c file:/opt/webApp/AmazonCloudWatch-cloudwatch-config.json \
+        // -s
+        // sudo systemctl enable amazon-cloudwatch-agent
+        // sudo systemctl start amazon-cloudwatch-agent`,
+        userData: userDataScript.apply((data) => Buffer.from(data).toString("base64")),
+        tags: {
+            Name: "csye6225_asg",
+        },
+    });
+    
+    //Autoscaling group
+    const autoScalingGroup = new aws.autoscaling.Group("AppAutoScalingGroup", {
+        vpcZoneIdentifiers: publicSubnets.apply(subnets => subnets.map(subnet => subnet.id)),
+        maxSize: 3,
+        minSize: 1,
+        desiredCapacity: 1,
+        forceDelete: true,
+        defaultCooldown: 60,
+        launchTemplate: {
+            id: launchTemplate.id,
+            version: `$Latest`
+        },
+        targetGroupArns: [targetGroup.arn],
+        tags: [
+            { key: "Name", value: "AppEC2Instance", propagateAtLaunch: true },
+        ],
+    });
+
+     //Scaling policy
+
+    // Auto Scaling Policies (F)
+    const scaleUpPolicy = new aws.autoscaling.Policy("scaleUp", {
+        scalingAdjustment: 1,
+        adjustmentType: "ChangeInCapacity",
+        cooldown: 60,
+        autoscalingGroupName: autoScalingGroup.name,
+        policyType: "SimpleScaling",
+        metricAggregationType: "Average",
+    });
+
+    const scaleDownPolicy = new aws.autoscaling.Policy("scaleDown", {
+        scalingAdjustment: -1,
+        adjustmentType: "ChangeInCapacity",
+        cooldown: 60,
+        autoscalingGroupName: autoScalingGroup.name,
+        policyType: "SimpleScaling",
+        metricAggregationType: "Average",
+    });
+
+    //ALARMS:
+
+    // CloudWatch Alarm for Scaling Up
+    const scaleUpAlarm = new aws.cloudwatch.MetricAlarm("scaleUpAlarm", {
+        metricName: "CPUUtilization",
+        namespace: "AWS/EC2",
+        statistic: "Average",
+        period: 60,
+        evaluationPeriods: 1,
+        threshold: 5, // Set appropriate CPU threshold
+        comparisonOperator: "GreaterThanOrEqualToThreshold",
+        alarmActions: [scaleUpPolicy.arn],
+        dimensions: {
+            AutoScalingGroupName: autoScalingGroup.name,
+        },
+    });
+    
+
+    // CloudWatch Alarm for Scaling Down
+    const scaleDownAlarm = new aws.cloudwatch.MetricAlarm("scaleDownAlarm", {
+        metricName: "CPUUtilization",
+        namespace: "AWS/EC2",
+        statistic: "Average",
+        period: 60,
+        evaluationPeriods: 1,
+        threshold: 3, // Set appropriate CPU threshold
+        comparisonOperator: "LessThanOrEqualToThreshold",
+        alarmActions: [scaleDownPolicy.arn],
+        dimensions: {
+            AutoScalingGroupName: autoScalingGroup.name,
+        },
+    });
 
 
     // 2. Create/Update the A record for your EC2 instance within the Hosted Zone
     const domainName = "siddharthgargava.me"; // Replace with your domain name
     const subdomainName = "demos"; // Subdomain for the EC2 instance. Change this if required.
 
-    const aRecord = new aws.route53.Record(`${subdomainName}.${domainName}`, {
+    const aRecord = new aws.route53.Record("aRecord", {
         zoneId: hostedZoneId,
         name: "demos.siddharthgargava.me",
         type: "A",
-        ttl: 60,
-        records: [ec2Instance.publicIp], // This ties the EC2 instance's public IP to the A record
+        //ttl: 60,
+        //records: [ec2Instance.publicIp], // This ties the EC2 instance's public IP to the A record
+        aliases: [{
+            name: appLoadBalancer.dnsName,
+            zoneId: appLoadBalancer.zoneId,
+            evaluateTargetHealth: true,
+        }],
     });
+
+    //Assignment-9 ends
 //Assignment-7 end
 
 //Assignment-6 End
