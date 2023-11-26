@@ -3,13 +3,17 @@ config:
   aws:region: us-east-1
   # iac-pulumi:dbPassword:
 
+  gcp:project: oceanic-gecko-405900
   iac-pulumi:dbPassword:
     secure: AAABANpu4h2EM6VeTdg7qArr2UFXKBkSLXo6W9B2IUpgPSQcCCseltw=
   #   secure: AAABAFm7KcuTrZvuC+a7m7Zuz89v8hGPRs1yO/fpPz4sDejn17bGVMc=
+
   iac-pulumi:dbPostgresql: csye6225
   iac-pulumi:dbUser: csye6225
   iac-pulumi:hostedZoneId: "Z0731170MH9MSL0U81NP"
   iac-pulumi:igwName: "igw_aws"
+  iac-pulumi:mailgunkey:
+    secure: AAABACPn9sTHMSrAs6s5mYdgd1mJj57lG7rubtlk3p3cFscSGiC0tttbMnMMw/gcYa7sNlxbtTed7MGgtmsblGvLqCSrmxue8Huyiom6tYrdRA==
   iac-pulumi:privateSubnetBaseCIDR: 10.0.4.0
   iac-pulumi:privaterouteName: "private_route_table"
   iac-pulumi:publicSubnetBaseCIDR: 10.0.1.0

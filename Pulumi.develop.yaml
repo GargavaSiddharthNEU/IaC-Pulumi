@@ -10,6 +10,8 @@ config:
   iac-pulumi:dbUser: "csye6225"
   iac-pulumi:hostedZoneId: "Z06048782W3S82E5AUHQA"
   iac-pulumi:igwName: "igw_aws"
+  iac-pulumi:mailgunkey:
+    secure: AAABAP06WnGj4BDf2j4F/eepgdnbb4ijFO4v63fUpdoirdmNvnKyjTuHi0FODa/NbAKHsC0/rw9EC5SbMa/XWXRQaj2IBTjI+JvCbxOv3K885w==
   iac-pulumi:privateSubnetBaseCIDR: 10.0.4.0
   iac-pulumi:privaterouteName: "private_route_table"
   iac-pulumi:publicSubnetBaseCIDR: 10.0.1.0

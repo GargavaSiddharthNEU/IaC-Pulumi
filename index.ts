@@ -1,5 +1,6 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
+import * as gcp from "@pulumi/gcp";
 
 // Setup Pulumi Config
 const config = new pulumi.Config();
@@ -16,6 +17,7 @@ const privaterouteNameF = config.require("privaterouteName");
 const dbPassword = config.requireSecret("dbPassword");
 const dbUser = config.require("dbUser");
 const dbPostgresql = config.require("dbPostgresql");
+const mailgun_api = config.requireSecret("mailgunkey");
 
 // Assuming you have the hosted zone ID as a Pulumi config value
 const hostedZoneId = config.require("hostedZoneId");
@@ -146,8 +148,8 @@ const publicRoute = new aws.ec2.Route("publicRoute", {
         vpcId: vpc.id,
         description: "Security group for web applications",
         ingress: [
-            { protocol: "tcp", fromPort: 22, toPort: 22, securityGroups: [lbSecurityGroup.id] },
-            // { protocol: "tcp", fromPort: 22, toPort: 22, cidrBlocks: ["0.0.0.0/0"] },
+            //{ protocol: "tcp", fromPort: 22, toPort: 22, securityGroups: [lbSecurityGroup.id] },
+            { protocol: "tcp", fromPort: 22, toPort: 22, cidrBlocks: ["0.0.0.0/0"] },
             { protocol: "tcp", fromPort: 8080, toPort: 8080, securityGroups: [lbSecurityGroup.id] }
         ],
         egress: [       
@@ -265,6 +267,139 @@ const latestAmi = pulumi.output(latestAmiPromise);
         role: cloudwatchAgentRole.name,
     });
 
+    //Assignment-10 starts
+
+    const bucket = new gcp.storage.Bucket("csye-6225-siddharthgargava-2023", {
+        location: "us-central1",
+        forceDestroy: true,
+        //versioning: true,
+    });
+ 
+    const serviceAccount = new gcp.serviceaccount.Account("myServiceAccount", {
+        accountId: "gcp-bucket-service-account",
+        displayName: "GCP Bucket Service Account",
+    });
+ 
+    const bucketAccess = new gcp.storage.BucketIAMBinding("bucketAccess", {
+        bucket: bucket.name,
+        role: "roles/storage.objectAdmin",
+        members: [pulumi.interpolate`serviceAccount:${serviceAccount.email}`],
+    });
+ 
+    const serviceAccountKeys = new gcp.serviceaccount.Key("myServiceAccountKeys", {
+        serviceAccountId: serviceAccount.id,
+    });
+ 
+    const emailTopic = new aws.sns.Topic("csyeEmail", {
+        displayName: "CSYE EMAIL TOPIC",
+    });
+ 
+    const lambdaRoleEmail = new aws.iam.Role("LambdaEmailRole", {
+        assumeRolePolicy: JSON.stringify({
+            Version: "2012-10-17",
+            Statement: [{
+                Effect: "Allow",
+                Principal: {
+                    Service: ["lambda.amazonaws.com"],
+                },
+                Action: ["sts:AssumeRole"],
+            }],
+        }),
+    });
+ 
+    const cloudWatchLogsAttachmentEmail = new aws.iam.RolePolicyAttachment("lambdaPolicy-CloudWatchLogsEmail", {
+        role: lambdaRoleEmail.name,
+        policyArn: "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess",
+    });
+ 
+    const s3FullAccessAttachmentEmail = new aws.iam.RolePolicyAttachment("lambdaPolicy-S3FullAccessEmail", {
+        role: lambdaRoleEmail.name,
+        policyArn: "arn:aws:iam::aws:policy/AmazonS3FullAccess",
+    });
+ 
+    const lambdaFullAccessAttachmentEmail = new aws.iam.RolePolicyAttachment("lambdaPolicy-LambdaFullAccessEmail", {
+        role: lambdaRoleEmail.name,
+        policyArn: "arn:aws:iam::aws:policy/AWSLambda_FullAccess",
+    });
+ 
+    const dynamoDBFullAccessAttachmentEmail = new aws.iam.RolePolicyAttachment("lambdaPolicy-DynamoDBFullAccessEmail", {
+        role: lambdaRoleEmail.name,
+        policyArn: "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess",
+    });
+
+    // const snsPublishPolicy = new aws.iam.Policy("SNSPublishPolicy", {
+    //     policy: JSON.stringify({
+    //         Version: "2012-10-17",
+    //         Statement: [{
+    //             Effect: "Allow",
+    //             Action: "sns:Publish",
+    //             Resource: emailTopic.arn, 
+    //         }],
+    //     })
+    // });
+
+    const snsPublishPolicy = new aws.iam.Policy("SNSPublishPolicy", {
+        policy: emailTopic.arn.apply(arn => JSON.stringify({
+            Version: "2012-10-17",
+            Statement: [{
+                Effect: "Allow",
+                Action: "sns:Publish",
+                Resource: arn,
+            }],
+        }))
+    });
+    
+    
+    const snsPolicyAttachment = new aws.iam.PolicyAttachment("snsPolicyAttachment", {
+        policyArn: snsPublishPolicy.arn,
+        roles: [cloudwatchAgentRole.name], 
+    });
+
+    const dynamoDB = new aws.dynamodb.Table("csye-6225", {
+        name:"csye-6225",
+        attributes: [  
+            { name: "emailSentAt", type: "S" },  
+        ],
+        hashKey: "emailSentAt",
+        billingMode: "PAY_PER_REQUEST",
+        // readCapacity: 1,
+        // writeCapacity: 1,
+    });
+
+    const lambdaFunctionEmail = new aws.lambda.Function("csyeLambda", {
+        role: lambdaRoleEmail.arn,
+        runtime: "nodejs18.x",
+        handler: "index.handler",
+        code:  new pulumi.asset.FileArchive("./serverless.zip"),
+        environment: {
+            variables: {
+                GOOGLE_STORAGE_BUCKET_NAME: bucket.name,
+                GOOGLE_SERVICE_ACCOUNT_KEY: serviceAccountKeys.privateKey,
+                GCP_PROJECT_ID: "oceanic-gecko-405900",
+                GCP_SERVICE_ACCOUNT_EMAIL: serviceAccount.email,
+                MAILGUN_API: mailgun_api,
+                DYNAMO_TABLE_NAME: dynamoDB.name,
+            },
+        },
+    });
+
+
+     
+ 
+    const snsSubscriptionEmail = new aws.sns.TopicSubscription(`csyeSNSSubscriptionEmail`, {
+        topic: emailTopic.arn,
+        protocol: "lambda",
+        endpoint: lambdaFunctionEmail.arn,
+    });
+ 
+    const lambdaPermissionEmail = new aws.lambda.Permission("with_sns_email", {
+        statementId: "AllowExecutionFromSNSEmail",
+        action: "lambda:InvokeFunction",
+        function: lambdaFunctionEmail.name,
+        principal: "sns.amazonaws.com",
+        sourceArn: emailTopic.arn,
+    });
+
 
     //Fetch your Route53 Hosted Zone using the hostedZoneId
     const hostedZone = aws.route53.getZone({ zoneId: hostedZoneId });
@@ -352,6 +487,7 @@ const latestAmi = pulumi.output(latestAmiPromise);
     echo DB_POSTGRESQL=${dbPostgresql} >> /opt/webApp/.env
     echo DB_USER=${dbUser} >> /opt/webApp/.env
     echo DB_PASSWORD=${dbPassword} >> /opt/webApp/.env
+    echo TOPICARN=${emailTopic.arn} >> /opt/webApp/.env
     sudo systemctl restart webApp.service
     
     sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
