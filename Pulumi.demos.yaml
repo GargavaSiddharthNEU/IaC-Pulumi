@@ -3,7 +3,8 @@ config:
   aws:region: us-east-1
   # iac-pulumi:dbPassword:
 
-  gcp:project: oceanic-gecko-405900
+  gcp:project: csye6225-demo-406400
+  iac-pulumi:GCP_PROJECT_ID: csye6225-demo-406400
   iac-pulumi:dbPassword:
     secure: AAABANpu4h2EM6VeTdg7qArr2UFXKBkSLXo6W9B2IUpgPSQcCCseltw=
   #   secure: AAABAFm7KcuTrZvuC+a7m7Zuz89v8hGPRs1yO/fpPz4sDejn17bGVMc=

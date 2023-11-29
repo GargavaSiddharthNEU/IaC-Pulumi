@@ -18,6 +18,7 @@ const dbPassword = config.requireSecret("dbPassword");
 const dbUser = config.require("dbUser");
 const dbPostgresql = config.require("dbPostgresql");
 const mailgun_api = config.requireSecret("mailgunkey");
+const gcpProjectId = config.require("GCP_PROJECT_ID");
 
 // Assuming you have the hosted zone ID as a Pulumi config value
 const hostedZoneId = config.require("hostedZoneId");
@@ -272,6 +273,9 @@ const latestAmi = pulumi.output(latestAmiPromise);
     const bucket = new gcp.storage.Bucket("csye-6225-siddharthgargava-2023", {
         location: "us-central1",
         forceDestroy: true,
+        versioning: {
+            enabled: true,
+          },
         //versioning: true,
     });
  
@@ -358,9 +362,11 @@ const latestAmi = pulumi.output(latestAmiPromise);
     const dynamoDB = new aws.dynamodb.Table("csye-6225", {
         name:"csye-6225",
         attributes: [  
-            { name: "emailSentAt", type: "S" },  
+            { name: "emailSentAt", type: "S" }, 
+            {name: "message", type: "S"}, 
         ],
         hashKey: "emailSentAt",
+        rangeKey: "message",
         billingMode: "PAY_PER_REQUEST",
         // readCapacity: 1,
         // writeCapacity: 1,
@@ -375,7 +381,7 @@ const latestAmi = pulumi.output(latestAmiPromise);
             variables: {
                 GOOGLE_STORAGE_BUCKET_NAME: bucket.name,
                 GOOGLE_SERVICE_ACCOUNT_KEY: serviceAccountKeys.privateKey,
-                GCP_PROJECT_ID: "oceanic-gecko-405900",
+                GCP_PROJECT_ID: gcpProjectId,
                 GCP_SERVICE_ACCOUNT_EMAIL: serviceAccount.email,
                 MAILGUN_API: mailgun_api,
                 DYNAMO_TABLE_NAME: dynamoDB.name,
