@@ -453,6 +453,8 @@ const latestAmi = pulumi.output(latestAmiPromise);
         name: "loadbalancer-siddharth",
         internal: false,
         loadBalancerType: "application",
+        //sslPolicy: "ELBSecurityPolicy-2016-08",
+        enableHttp2: true,
         securityGroups: [lbSecurityGroup.id],
         subnets: publicSubnets.apply(subnets => subnets.map(subnet => subnet.id)),
         enableDeletionProtection: false,
@@ -477,8 +479,10 @@ const latestAmi = pulumi.output(latestAmiPromise);
     
     new aws.lb.Listener("AppListener", {
         loadBalancerArn: appLoadBalancer.arn,
-        port: 80,
-        protocol: "HTTP",
+        port: 443,
+        protocol: "HTTPS",
+        sslPolicy: "ELBSecurityPolicy-2016-08",
+        certificateArn: "arn:aws:acm:us-east-1:075160867462:certificate/b5875ed7-6b42-4776-b7fa-481074b642aa",
         defaultActions: [{
             type: "forward",
             targetGroupArn: targetGroup.arn,
@@ -506,6 +510,7 @@ const latestAmi = pulumi.output(latestAmiPromise);
 
     // Auto Scaling Setup (D)
     const launchTemplate = new aws.ec2.LaunchTemplate("AppLaunchTemplate", {
+        name: "webapp-launch-template",
         imageId: latestAmi.apply(ami => ami.id),
         instanceType: "t2.micro",
         keyName: "ec2-aws-test",
@@ -553,6 +558,7 @@ const latestAmi = pulumi.output(latestAmiPromise);
     
     //Autoscaling group
     const autoScalingGroup = new aws.autoscaling.Group("AppAutoScalingGroup", {
+        name:"csye6225_asg",
         vpcZoneIdentifiers: publicSubnets.apply(subnets => subnets.map(subnet => subnet.id)),
         maxSize: 3,
         minSize: 1,
