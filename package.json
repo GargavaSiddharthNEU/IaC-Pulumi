@@ -4,6 +4,7 @@
     "devDependencies": {
         "@types/node": "^16"
     },
+    "author": "Siddharth",
     "dependencies": {
         "@pulumi/aws": "^5.0.0",
         "@pulumi/awsx": "^1.0.0",
